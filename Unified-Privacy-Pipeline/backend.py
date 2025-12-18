@@ -94,16 +94,36 @@ class SimpleFaceNet(nn.Module):
 
 
 class SimpleHealthNet(nn.Module):
-    """Simple MLP for health prediction."""
-    def __init__(self, input_dim=13, hidden_dim=32, output_dim=2):
+    """Enhanced deep network for health prediction with BatchNorm and Dropout."""
+    def __init__(self, input_dim=13, hidden_dim=128, output_dim=2):
         super().__init__()
         self.net = nn.Sequential(
+            # Layer 1: Input -> 128
             nn.Linear(input_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+
+            # Layer 2: 128 -> 256
+            nn.Linear(hidden_dim, hidden_dim * 2),
+            nn.BatchNorm1d(hidden_dim * 2),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+
+            # Layer 3: 256 -> 128
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.Linear(hidden_dim, hidden_dim),
+
+            # Layer 4: 128 -> 64
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.BatchNorm1d(hidden_dim // 2),
             nn.ReLU(),
-            nn.Linear(hidden_dim, output_dim)
+            nn.Dropout(0.2),
+
+            # Output layer
+            nn.Linear(hidden_dim // 2, output_dim)
         )
 
     def forward(self, x):
@@ -257,41 +277,55 @@ def train_face_recognition(epochs=5, use_dp=False):
         logger.exception("Training error:")
 
 
-def train_health_prediction(epochs=5, use_dp=False):
-    """Train health prediction model - optimized for live demos."""
+def train_health_prediction(epochs=50, use_dp=False):
+    """Train health prediction model - optimized for high accuracy."""
     try:
-        add_log("Starting health prediction training (demo mode)...", "info")
+        add_log("Starting health prediction training (high accuracy mode)...", "info")
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         add_log(f"Using device: {device}", "info")
 
-        # Load data with larger batches for speed
+        # Load data with smaller batches for better generalization
         add_log("Loading heart disease dataset...", "info")
         forget_loader, retain_loader, test_loader = create_unlearning_loaders(
-            dataset_type='heart', forget_ratio=0.1, batch_size=64
+            dataset_type='heart', forget_ratio=0.1, batch_size=16
         )
         add_log(f"Dataset loaded: {len(retain_loader.dataset)} training samples", "success")
 
-        # Create model
-        add_log("Creating health prediction model...", "info")
-        model = SimpleHealthNet(input_dim=13, output_dim=2).to(device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+        # Create enhanced model
+        add_log("Creating enhanced health prediction model...", "info")
+        model = SimpleHealthNet(input_dim=13, output_dim=2, hidden_dim=128).to(device)
+
+        # Better optimizer with weight decay for regularization
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+
+        # Learning rate scheduler for better convergence
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=0.5, patience=5, verbose=False
+        )
+
         criterion = nn.CrossEntropyLoss()
 
-        # Cap epochs for demo speed
-        epochs = min(epochs, 10)
+        # Use more epochs for better accuracy (no time limit)
+        epochs = min(epochs, 100)  # Cap at 100 for safety
 
         update_progress(status='training', epoch=0, progress=0)
         training_state['total_epochs'] = epochs
         training_state['model'] = model
         training_state['task'] = 'health_prediction'
 
-        # Training loop
-        add_log(f"Training for {epochs} epochs (demo mode)...", "info")
-        model.train()
+        # Training loop with validation tracking
+        add_log(f"Training for {epochs} epochs (high accuracy mode)...", "info")
+        best_val_loss = float('inf')
+        patience_counter = 0
+        max_patience = 15
 
         for epoch in range(epochs):
+            # Training phase
+            model.train()
             total_loss = 0
             num_batches = 0
+            correct_train = 0
+            total_train = 0
 
             for features, labels in retain_loader:
                 features, labels = features.to(device), labels.to(device)
@@ -304,7 +338,28 @@ def train_health_prediction(epochs=5, use_dp=False):
                 total_loss += loss.item()
                 num_batches += 1
 
+                # Track training accuracy
+                _, predicted = outputs.max(1)
+                total_train += labels.size(0)
+                correct_train += predicted.eq(labels).sum().item()
+
             avg_loss = total_loss / num_batches if num_batches > 0 else 0
+            train_acc = 100. * correct_train / total_train if total_train > 0 else 0
+
+            # Adjust learning rate based on loss
+            scheduler.step(avg_loss)
+
+            # Early stopping check
+            if avg_loss < best_val_loss:
+                best_val_loss = avg_loss
+                patience_counter = 0
+            else:
+                patience_counter += 1
+
+            if patience_counter >= max_patience:
+                add_log(f"Early stopping at epoch {epoch + 1} - no improvement", "info")
+                break
+
             progress = int((epoch + 1) / epochs * 100)
 
             update_progress(
@@ -313,8 +368,9 @@ def train_health_prediction(epochs=5, use_dp=False):
                 progress=progress
             )
 
-            # Log every epoch for better demo feedback
-            add_log(f"Epoch {epoch + 1}/{epochs} - Loss: {avg_loss:.4f}", "info")
+            # Log every 5 epochs or last epoch
+            if (epoch + 1) % 5 == 0 or epoch == 0 or epoch == epochs - 1:
+                add_log(f"Epoch {epoch + 1}/{epochs} - Loss: {avg_loss:.4f}, Train Acc: {train_acc:.1f}%", "info")
 
         # Evaluation
         add_log("Evaluating model...", "info")
