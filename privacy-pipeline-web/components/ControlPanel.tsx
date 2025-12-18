@@ -5,7 +5,7 @@ import { useState } from 'react';
 export default function ControlPanel() {
   const [task, setTask] = useState('health_prediction');
   const [epochs, setEpochs] = useState(50);
-  const [useDP, setUseDP] = useState(false);
+  const [useDP, setUseDP] = useState(true);
   const [unlearnMethod, setUnlearnMethod] = useState('gradient_ascent');
   const [iterations, setIterations] = useState(5);
 

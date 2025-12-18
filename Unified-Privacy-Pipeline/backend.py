@@ -18,6 +18,15 @@ import logging
 from threading import Thread, Lock
 from typing import Optional, Dict, List, Any
 
+# Differential Privacy imports
+try:
+    from opacus import PrivacyEngine
+    from opacus.utils.batch_memory_manager import BatchMemoryManager
+    OPACUS_AVAILABLE = True
+except ImportError:
+    OPACUS_AVAILABLE = False
+    logging.warning("Opacus not available - Differential Privacy will be disabled")
+
 # Import privacy pipeline modules
 from datasets.real_data_loaders import create_unlearning_loaders
 from machine_unlearning.unlearning_methods import create_unlearner, UnlearningConfig
@@ -297,6 +306,24 @@ def train_health_prediction(epochs=50, use_dp=False):
 
         # Better optimizer with weight decay for regularization
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+
+        # Apply Differential Privacy if requested
+        if use_dp and OPACUS_AVAILABLE:
+            add_log("Applying Differential Privacy with ε=1.0, δ=1e-5...", "info")
+            privacy_engine = PrivacyEngine()
+
+            model, optimizer, retain_loader = privacy_engine.make_private_with_epsilon(
+                module=model,
+                optimizer=optimizer,
+                data_loader=retain_loader,
+                epochs=epochs,
+                target_epsilon=1.0,
+                target_delta=1e-5,
+                max_grad_norm=1.0,
+            )
+            add_log("Differential Privacy enabled successfully", "success")
+        elif use_dp and not OPACUS_AVAILABLE:
+            add_log("DP requested but Opacus not installed - training without DP", "warning")
 
         # Learning rate scheduler for better convergence
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
