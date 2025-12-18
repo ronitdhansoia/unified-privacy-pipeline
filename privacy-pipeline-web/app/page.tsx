@@ -12,6 +12,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [metrics, setMetrics] = useState<any>({});
   const [logs, setLogs] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   // Poll for status updates
   useEffect(() => {
@@ -38,28 +39,45 @@ export default function Home() {
 
       {/* Content */}
       <div className="relative z-10">
-        <Navbar status={status} />
+        <Navbar status={status} activeTab={activeTab} onTabChange={setActiveTab} />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Hero Section */}
-          <div className="text-center mb-16 animate-fade-in">
-            <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-              Train models with differential privacy, perform machine unlearning,
-              and evaluate privacy attacks — all in real-time.
-            </p>
-          </div>
+          {activeTab === 'dashboard' && (
+            <>
+              {/* Hero Section */}
+              <div className="text-center mb-16 animate-fade-in">
+                <p className="text-xl text-gray-400 max-w-3xl mx-auto">
+                  Train models with differential privacy, perform machine unlearning,
+                  and evaluate privacy attacks — all in real-time.
+                </p>
+              </div>
 
-          {/* Control Panel */}
-          <ControlPanel />
+              {/* Control Panel */}
+              <ControlPanel />
 
-          {/* Progress Display */}
-          {status !== 'idle' && <ProgressDisplay status={status} progress={progress} />}
+              {/* Progress Display */}
+              {status !== 'idle' && <ProgressDisplay status={status} progress={progress} />}
 
-          {/* Metrics Display */}
-          {Object.keys(metrics).length > 0 && <MetricsDisplay metrics={metrics} />}
+              {/* Logs Display */}
+              <LogsDisplay logs={logs} />
+            </>
+          )}
 
-          {/* Logs Display */}
-          <LogsDisplay logs={logs} />
+          {activeTab === 'metrics' && (
+            <>
+              <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold mb-4">Performance Metrics</h2>
+                <p className="text-gray-400">View detailed performance and privacy metrics</p>
+              </div>
+              {Object.keys(metrics).length > 0 ? (
+                <MetricsDisplay metrics={metrics} />
+              ) : (
+                <div className="text-center py-20">
+                  <p className="text-gray-500">No metrics available. Run a training session first.</p>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
