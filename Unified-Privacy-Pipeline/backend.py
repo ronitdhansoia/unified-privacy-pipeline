@@ -341,7 +341,7 @@ def train_health_prediction(epochs=50, use_dp=False):
 
         # Apply Differential Privacy if requested
         if use_dp and OPACUS_AVAILABLE:
-            add_log("Enabling Differential Privacy (ε=1.0, δ=1e-5)...", "info")
+            add_log("Enabling Strong Differential Privacy (ε=0.5, δ=1e-5)...", "info")
             privacy_engine = PrivacyEngine()
 
             model, optimizer, retain_loader = privacy_engine.make_private_with_epsilon(
@@ -349,11 +349,12 @@ def train_health_prediction(epochs=50, use_dp=False):
                 optimizer=optimizer,
                 data_loader=retain_loader,
                 epochs=epochs,
-                target_epsilon=1.0,
+                target_epsilon=0.5,  # Stronger privacy (lower epsilon)
                 target_delta=1e-5,
-                max_grad_norm=1.0,
+                max_grad_norm=0.8,  # More aggressive gradient clipping
             )
-            add_log("Differential Privacy enabled successfully", "success")
+            add_log("Strong Differential Privacy enabled (ε=0.5)", "success")
+            add_log("Privacy guarantee: (ε, δ)-differential privacy", "success")
         elif use_dp and not OPACUS_AVAILABLE:
             add_log("DP requested but Opacus not installed - training without DP", "warning")
 
@@ -549,9 +550,16 @@ def evaluate_privacy():
         if model is None:
             raise ValueError("No trained model found. Train a model first.")
 
-        # Unwrap model from PrivacyEngine if needed (like in unlearning)
+        # Check if model has DP applied
+        has_dp = hasattr(model, '_module')
+        if has_dp:
+            add_log("Model trained with Differential Privacy detected", "success")
+            # Keep wrapped for privacy-aware evaluation
+        else:
+            add_log("Model trained WITHOUT Differential Privacy", "warning")
+
+        # Unwrap model for evaluation (but remember it had DP)
         if hasattr(model, '_module'):
-            add_log("Unwrapping model from Differential Privacy engine...", "info")
             model = model._module
 
         # Load dataset
