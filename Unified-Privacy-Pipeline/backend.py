@@ -103,31 +103,31 @@ class SimpleFaceNet(nn.Module):
 
 
 class SimpleHealthNet(nn.Module):
-    """Enhanced deep network for health prediction with BatchNorm and Dropout."""
+    """Enhanced deep network for health prediction with LayerNorm (DP-compatible) and Dropout."""
     def __init__(self, input_dim=13, hidden_dim=128, output_dim=2):
         super().__init__()
         self.net = nn.Sequential(
             # Layer 1: Input -> 128
             nn.Linear(input_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
+            nn.LayerNorm(hidden_dim),
             nn.ReLU(),
             nn.Dropout(0.3),
 
             # Layer 2: 128 -> 256
             nn.Linear(hidden_dim, hidden_dim * 2),
-            nn.BatchNorm1d(hidden_dim * 2),
+            nn.LayerNorm(hidden_dim * 2),
             nn.ReLU(),
             nn.Dropout(0.3),
 
             # Layer 3: 256 -> 128
             nn.Linear(hidden_dim * 2, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
+            nn.LayerNorm(hidden_dim),
             nn.ReLU(),
             nn.Dropout(0.2),
 
             # Layer 4: 128 -> 64
             nn.Linear(hidden_dim, hidden_dim // 2),
-            nn.BatchNorm1d(hidden_dim // 2),
+            nn.LayerNorm(hidden_dim // 2),
             nn.ReLU(),
             nn.Dropout(0.2),
 
