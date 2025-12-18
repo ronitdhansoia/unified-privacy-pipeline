@@ -546,7 +546,16 @@ def root():
 def get_status():
     """Get current status."""
     with state_lock:
-        return training_state
+        # Return a copy to avoid race conditions during JSON serialization
+        return {
+            'status': training_state['status'],
+            'progress': training_state['progress'],
+            'current_epoch': training_state['current_epoch'],
+            'total_epochs': training_state['total_epochs'],
+            'current_loss': training_state['current_loss'],
+            'metrics': dict(training_state['metrics']),  # Create a copy
+            'logs': list(training_state['logs']),  # Create a copy
+        }
 
 
 @app.get("/logs")
