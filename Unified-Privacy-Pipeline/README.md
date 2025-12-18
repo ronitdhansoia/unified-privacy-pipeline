@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![arXiv](https://img.shields.io/badge/arXiv-2024.xxxxx-b31b1b.svg)](https://arxiv.org/)
+[![arXiv](https://img.shields.io/badge/arXiv-2025.xxxxx-b31b1b.svg)](https://arxiv.org/)
 
 > **The first unified framework integrating Differential Privacy, Machine Unlearning, and Influence Functions for privacy-compliant AI systems.**
 
@@ -331,11 +331,11 @@ The complete technical documentation is available in our IEEE conference format 
 If you use PRVCYPPLN in your research, please cite:
 
 ```bibtex
-@article{dhansoia2024prvcyppln,
+@article{dhansoia2025prvcyppln,
   title={PRVCYPPLN: A Unified Privacy-Preserving Machine Learning Pipeline Integrating Differential Privacy, Machine Unlearning, and Influence Functions},
   author={Dhansoia, Ronit},
-  journal={arXiv preprint arXiv:2024.xxxxx},
-  year={2024}
+  journal={arXiv preprint arXiv:2025.xxxxx},
+  year={2025}
 }
 ```
 
