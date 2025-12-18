@@ -300,7 +300,7 @@ def train_health_prediction(epochs=50, use_dp=False):
 
         # Learning rate scheduler for better convergence
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=5, verbose=False
+            optimizer, mode='min', factor=0.5, patience=5
         )
 
         criterion = nn.CrossEntropyLoss()
