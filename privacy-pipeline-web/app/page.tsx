@@ -89,13 +89,28 @@ export default function Home() {
               <span style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: 700 }}>PRVCYPPLN</span> © 2025 | GDPR & HIPAA Compliant
             </p>
             <div className="flex gap-6">
-              <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">
+              <a
+                href="https://github.com/ronitdhansoia/unified-privacy-pipeline#readme"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-white text-sm transition-colors"
+              >
                 Documentation
               </a>
-              <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">
+              <a
+                href="https://github.com/ronitdhansoia/unified-privacy-pipeline"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-white text-sm transition-colors"
+              >
                 GitHub
               </a>
-              <a href="#" className="text-gray-500 hover:text-white text-sm transition-colors">
+              <a
+                href="https://github.com/ronitdhansoia/unified-privacy-pipeline#-prvcyppln-unified-privacy-preserving-machine-learning-pipeline"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-white text-sm transition-colors"
+              >
                 About
               </a>
             </div>
