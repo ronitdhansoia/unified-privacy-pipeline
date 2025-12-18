@@ -6,6 +6,7 @@ Real-time privacy-preserving ML server with all pipeline integrations.
 
 import sys
 import os
+import warnings
 sys.path.insert(0, 'src')
 
 from fastapi import FastAPI, HTTPException
@@ -17,6 +18,12 @@ import time
 import logging
 from threading import Thread, Lock
 from typing import Optional, Dict, List, Any
+
+# Suppress warnings for cleaner output
+warnings.filterwarnings('ignore', category=UserWarning, module='opacus')
+warnings.filterwarnings('ignore', category=UserWarning, message='.*Secure RNG.*')
+warnings.filterwarnings('ignore', category=UserWarning, message='.*Optimal order.*')
+warnings.filterwarnings('ignore', category=UserWarning, message='.*Full backward hook.*')
 
 # Differential Privacy imports
 try:
@@ -32,8 +39,12 @@ from datasets.real_data_loaders import create_unlearning_loaders
 from machine_unlearning.unlearning_methods import create_unlearner, UnlearningConfig
 from evaluation.privacy_metrics import MembershipInferenceAttack
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with better formatting
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-8s | %(message)s',
+    datefmt='%H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Unified Privacy Pipeline API")
@@ -153,7 +164,7 @@ class UnlearnRequest(BaseModel):
 
 # Helper functions
 def add_log(message: str, level: str = 'info'):
-    """Add a log entry."""
+    """Add a log entry with improved formatting."""
     timestamp = time.strftime('%H:%M:%S')
     log_entry = {
         'timestamp': timestamp,
@@ -164,7 +175,24 @@ def add_log(message: str, level: str = 'info'):
         training_state['logs'].append(log_entry)
         if len(training_state['logs']) > 100:
             training_state['logs'] = training_state['logs'][-100:]
-    logger.info(f"[{level.upper()}] {message}")
+
+    # Console logging with level-based formatting
+    if level == 'success':
+        logger.info(f"✓ {message}")
+    elif level == 'error':
+        logger.error(f"✗ {message}")
+    elif level == 'warning':
+        logger.warning(f"⚠ {message}")
+    else:
+        logger.info(f"  {message}")
+
+
+def log_section(title: str):
+    """Log a section header."""
+    separator = "=" * 60
+    add_log(separator, 'info')
+    add_log(f"  {title}", 'info')
+    add_log(separator, 'info')
 
 
 def update_progress(status=None, progress=None, epoch=None, loss=None, metrics=None):
@@ -278,10 +306,12 @@ def train_face_recognition(epochs=5, use_dp=False):
             metrics={'test_accuracy': accuracy / 100}
         )
 
-        add_log(f"Training completed! Test accuracy: {accuracy:.2f}%", "success")
+        log_section("TRAINING COMPLETE")
+        add_log(f"Final Test Accuracy: {accuracy:.2f}%", "success")
 
     except Exception as e:
-        add_log(f"Training failed: {str(e)}", "error")
+        log_section("TRAINING FAILED")
+        add_log(f"Error: {str(e)}", "error")
         update_progress(status='error')
         logger.exception("Training error:")
 
@@ -289,27 +319,29 @@ def train_face_recognition(epochs=5, use_dp=False):
 def train_health_prediction(epochs=50, use_dp=False):
     """Train health prediction model - optimized for high accuracy."""
     try:
-        add_log("Starting health prediction training (high accuracy mode)...", "info")
+        log_section("HEALTH PREDICTION TRAINING")
+        add_log("Mode: High Accuracy | Real UCI Heart Disease Data", "info")
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        add_log(f"Using device: {device}", "info")
+        add_log(f"Device: {device.type.upper()}", "info")
 
         # Load data with smaller batches for better generalization
-        add_log("Loading heart disease dataset...", "info")
+        add_log("Loading real patient data from UCI Cleveland Clinic...", "info")
         forget_loader, retain_loader, test_loader = create_unlearning_loaders(
             dataset_type='heart', forget_ratio=0.1, batch_size=16
         )
-        add_log(f"Dataset loaded: {len(retain_loader.dataset)} training samples", "success")
+        add_log(f"Loaded {len(retain_loader.dataset)} real patient records", "success")
 
         # Create enhanced model
-        add_log("Creating enhanced health prediction model...", "info")
+        add_log("Building deep neural network (4 layers, 128 hidden units)...", "info")
         model = SimpleHealthNet(input_dim=13, output_dim=2, hidden_dim=128).to(device)
+        add_log(f"Model created with {sum(p.numel() for p in model.parameters()):,} parameters", "success")
 
         # Better optimizer with weight decay for regularization
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
         # Apply Differential Privacy if requested
         if use_dp and OPACUS_AVAILABLE:
-            add_log("Applying Differential Privacy with ε=1.0, δ=1e-5...", "info")
+            add_log("Enabling Differential Privacy (ε=1.0, δ=1e-5)...", "info")
             privacy_engine = PrivacyEngine()
 
             model, optimizer, retain_loader = privacy_engine.make_private_with_epsilon(
@@ -341,7 +373,8 @@ def train_health_prediction(epochs=50, use_dp=False):
         training_state['task'] = 'health_prediction'
 
         # Training loop with validation tracking
-        add_log(f"Training for {epochs} epochs (high accuracy mode)...", "info")
+        log_section("TRAINING PROGRESS")
+        add_log(f"Starting {epochs} epochs with early stopping (patience={15})", "info")
         best_val_loss = float('inf')
         patience_counter = 0
         max_patience = 15
@@ -397,7 +430,10 @@ def train_health_prediction(epochs=50, use_dp=False):
 
             # Log every 5 epochs or last epoch
             if (epoch + 1) % 5 == 0 or epoch == 0 or epoch == epochs - 1:
-                add_log(f"Epoch {epoch + 1}/{epochs} - Loss: {avg_loss:.4f}, Train Acc: {train_acc:.1f}%", "info")
+                log_msg = f"Epoch {epoch + 1:2d}/{epochs} | Loss: {avg_loss:.4f} | Accuracy: {train_acc:5.1f}%"
+                if patience_counter > 0:
+                    log_msg += f" | Patience: {patience_counter}/{max_patience}"
+                add_log(log_msg, "info")
 
         # Evaluation
         add_log("Evaluating model...", "info")
@@ -421,10 +457,12 @@ def train_health_prediction(epochs=50, use_dp=False):
             metrics={'test_accuracy': accuracy / 100}
         )
 
-        add_log(f"Training completed! Test accuracy: {accuracy:.2f}%", "success")
+        log_section("TRAINING COMPLETE")
+        add_log(f"Final Test Accuracy: {accuracy:.2f}%", "success")
 
     except Exception as e:
-        add_log(f"Training failed: {str(e)}", "error")
+        log_section("TRAINING FAILED")
+        add_log(f"Error: {str(e)}", "error")
         update_progress(status='error')
         logger.exception("Training error:")
 
