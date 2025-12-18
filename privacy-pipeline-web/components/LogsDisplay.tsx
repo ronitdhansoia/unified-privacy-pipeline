@@ -10,19 +10,35 @@ export default function LogsDisplay({ logs }: LogsDisplayProps) {
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const isUserScrollingRef = useRef(false);
 
   useEffect(() => {
-    // Only auto-scroll if user hasn't manually scrolled up
-    if (autoScroll && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    // Only auto-scroll if user is at bottom
+    if (!logsContainerRef.current) return;
+
+    const container = logsContainerRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+    // If user is at bottom or hasn't scrolled yet, scroll to bottom
+    if (isAtBottom || (!isUserScrollingRef.current && logs.length > 0)) {
+      container.scrollTop = container.scrollHeight;
     }
-  }, [logs, autoScroll]);
+  }, [logs]);
 
   const handleScroll = () => {
     if (!logsContainerRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = logsContainerRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+    // Mark that user has scrolled
+    if (!isAtBottom) {
+      isUserScrollingRef.current = true;
+    } else {
+      isUserScrollingRef.current = false;
+    }
+
     setAutoScroll(isAtBottom);
   };
 
