@@ -107,21 +107,39 @@ export default function LogsDisplay({ logs }: LogsDisplayProps) {
               No logs yet. Start training to see activity.
             </div>
           ) : (
-            <div className="space-y-2">
-              {logs.map((log, index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-3 py-1 hover:bg-gray-900/50 px-2 rounded transition-colors"
-                >
-                  <span className="text-gray-600 text-xs mt-0.5 min-w-[60px]">
-                    {log.timestamp}
-                  </span>
-                  <div className="mt-0.5">{getLogIcon(log.level)}</div>
-                  <span className={`flex-1 ${getLogColor(log.level)}`}>
-                    {log.message}
-                  </span>
-                </div>
-              ))}
+            <div className="space-y-1">
+              {logs.map((log, index) => {
+                // Check if this is a section header (contains only "=" or starts with spaces and "=")
+                const isSectionHeader = log.message.trim().startsWith('=======');
+                const isSectionTitle = index > 0 && logs[index - 1]?.message.trim().startsWith('=======');
+
+                if (isSectionHeader) {
+                  return null; // Skip separator lines, we'll style the titles instead
+                }
+
+                return (
+                  <div
+                    key={index}
+                    className={`flex items-start gap-3 py-1 px-2 rounded transition-colors ${
+                      isSectionTitle
+                        ? 'bg-white/5 border-l-2 border-white mt-3 mb-1 font-semibold'
+                        : 'hover:bg-gray-900/50'
+                    }`}
+                  >
+                    {!isSectionTitle && (
+                      <span className="text-gray-600 text-xs mt-0.5 min-w-[60px]">
+                        {log.timestamp}
+                      </span>
+                    )}
+                    {!isSectionTitle && (
+                      <div className="mt-0.5">{getLogIcon(log.level)}</div>
+                    )}
+                    <span className={`flex-1 ${isSectionTitle ? 'text-white text-base' : getLogColor(log.level)}`}>
+                      {log.message.trim()}
+                    </span>
+                  </div>
+                );
+              })}
               <div ref={logsEndRef} />
             </div>
           )}
