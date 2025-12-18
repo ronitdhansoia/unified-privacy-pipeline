@@ -175,23 +175,12 @@ class GradientAscentUnlearning(BaseUnlearningMethod):
             model.train()
             total_forget_loss = 0.0
             total_retain_loss = 0.0
-            num_batches = 0
+            forget_batches = 0
+            retain_batches = 0
 
-            # Create iterators
-            forget_iter = iter(forget_loader)
-            retain_iter = iter(retain_loader)
-
-            max_batches = max(len(forget_loader), len(retain_loader))
-
-            for batch_idx in range(max_batches):
+            # Process forget batches with gradient ASCENT
+            for forget_batch in forget_loader:
                 optimizer.zero_grad()
-
-                # Process forget batch (gradient ASCENT)
-                try:
-                    forget_batch = next(forget_iter)
-                except StopIteration:
-                    forget_iter = iter(forget_loader)
-                    forget_batch = next(forget_iter)
 
                 if isinstance(forget_batch, dict):
                     forget_data = forget_batch.get('image', forget_batch.get('features')).to(device)
@@ -202,15 +191,19 @@ class GradientAscentUnlearning(BaseUnlearningMethod):
                 forget_loss = self._compute_loss(model, forget_data, forget_target)
 
                 # Gradient ASCENT on forget set (negative gradient descent)
-                (-self.config.ascent_weight * forget_loss).backward(retain_graph=True)
+                (-self.config.ascent_weight * forget_loss).backward()
                 total_forget_loss += forget_loss.item()
 
-                # Process retain batch (gradient DESCENT)
-                try:
-                    retain_batch = next(retain_iter)
-                except StopIteration:
-                    retain_iter = iter(retain_loader)
-                    retain_batch = next(retain_iter)
+                # Gradient clipping
+                if self.config.gradient_clipping > 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.config.gradient_clipping)
+
+                optimizer.step()
+                forget_batches += 1
+
+            # Process retain batches with gradient DESCENT
+            for retain_batch in retain_loader:
+                optimizer.zero_grad()
 
                 if isinstance(retain_batch, dict):
                     retain_data = retain_batch.get('image', retain_batch.get('features')).to(device)
@@ -229,11 +222,11 @@ class GradientAscentUnlearning(BaseUnlearningMethod):
                     torch.nn.utils.clip_grad_norm_(model.parameters(), self.config.gradient_clipping)
 
                 optimizer.step()
-                num_batches += 1
+                retain_batches += 1
 
             # Compute average losses
-            avg_forget_loss = total_forget_loss / num_batches
-            avg_retain_loss = total_retain_loss / num_batches
+            avg_forget_loss = total_forget_loss / max(forget_batches, 1)
+            avg_retain_loss = total_retain_loss / max(retain_batches, 1)
             combined_loss = avg_retain_loss - self.config.ascent_weight * avg_forget_loss
 
             # Evaluate

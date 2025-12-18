@@ -442,22 +442,37 @@ def perform_unlearning(method='gradient_ascent', iterations=10):
         if model is None:
             raise ValueError("No trained model found. Train a model first.")
 
+        # Unwrap model from PrivacyEngine if it was trained with DP
+        # This is necessary because Opacus wraps the model and is incompatible with unlearning
+        if hasattr(model, '_module'):
+            add_log("Unwrapping model from Differential Privacy engine...", "info")
+            model = model._module
+
         # Load dataset
         add_log("Loading dataset for unlearning...", "info")
         if task == 'face_recognition':
             forget_loader, retain_loader, _ = create_unlearning_loaders(
-                dataset_type='lfw', forget_ratio=0.1, batch_size=32
+                dataset_type='lfw', forget_ratio=0.1, batch_size=16
             )
         else:
             forget_loader, retain_loader, _ = create_unlearning_loaders(
-                dataset_type='heart', forget_ratio=0.1, batch_size=32
+                dataset_type='heart', forget_ratio=0.1, batch_size=16
             )
 
-        # Perform unlearning
+        # Perform unlearning with optimized config
         add_log("Unlearning in progress...", "info")
-        config = UnlearningConfig(max_iterations=iterations, patience=3)
+        config = UnlearningConfig(
+            max_iterations=iterations,
+            patience=3,
+            learning_rate=0.001,  # Higher learning rate for faster convergence
+            gradient_clipping=1.0
+        )
         unlearner = create_unlearner(method, config)
         results = unlearner.unlearn(model, forget_loader, retain_loader, device)
+
+        # Update the model in training_state with unwrapped version
+        with state_lock:
+            training_state['model'] = model
 
         forget_acc = results['final_metrics']['forget_accuracy']
         retain_acc = results['final_metrics']['retain_accuracy']
