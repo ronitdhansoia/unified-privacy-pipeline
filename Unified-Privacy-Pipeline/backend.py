@@ -538,7 +538,8 @@ def perform_unlearning(method='gradient_ascent', iterations=10):
 def evaluate_privacy():
     """Evaluate privacy with MIA."""
     try:
-        add_log("Starting privacy evaluation...", "info")
+        log_section("PRIVACY EVALUATION")
+        add_log("Starting Membership Inference Attack (MIA)...", "info")
         update_progress(status='evaluating', progress=0)
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -548,28 +549,48 @@ def evaluate_privacy():
         if model is None:
             raise ValueError("No trained model found. Train a model first.")
 
+        # Unwrap model from PrivacyEngine if needed (like in unlearning)
+        if hasattr(model, '_module'):
+            add_log("Unwrapping model from Differential Privacy engine...", "info")
+            model = model._module
+
         # Load dataset
-        add_log("Preparing attack data...", "info")
+        add_log("Loading attack test data...", "info")
         if task == 'face_recognition':
-            forget_loader, retain_loader, _ = create_unlearning_loaders(
-                dataset_type='lfw', forget_ratio=0.1, batch_size=32
+            forget_loader, retain_loader, test_loader = create_unlearning_loaders(
+                dataset_type='lfw', forget_ratio=0.2, batch_size=32
             )
         else:
-            forget_loader, retain_loader, _ = create_unlearning_loaders(
-                dataset_type='heart', forget_ratio=0.1, batch_size=32
+            forget_loader, retain_loader, test_loader = create_unlearning_loaders(
+                dataset_type='heart', forget_ratio=0.2, batch_size=32
             )
 
-        # Perform MIA
-        add_log("Training attack model...", "info")
+        add_log(f"Member samples: {len(retain_loader.dataset)}, Non-member: {len(forget_loader.dataset)}", "info")
+
+        # Perform MIA - FIXED: retain_loader was used for training (members), forget_loader was not (non-members)
+        add_log("Training MIA attack model...", "info")
         mia = MembershipInferenceAttack()
-        features, labels = mia.prepare_attack_data(model, forget_loader, retain_loader, device)
+        # CRITICAL FIX: Swap the order - retain_loader is member data, forget_loader is non-member
+        features, labels = mia.prepare_attack_data(model, retain_loader, forget_loader, device)
         mia.train_attack_model(features, labels)
 
-        add_log("Evaluating attack...", "info")
-        attack_result = mia.evaluate_attack(model, forget_loader, retain_loader, device)
+        add_log("Evaluating attack success rate...", "info")
+        # CRITICAL FIX: Also swap here
+        attack_result = mia.evaluate_attack(model, retain_loader, forget_loader, device)
 
         attack_acc = attack_result.attack_accuracy
-        privacy_protection = (1 - (attack_acc - 0.5) * 2)
+        # Privacy protection: If attack accuracy = 50% (random guessing), privacy = 100%
+        # If attack accuracy = 100% (perfect attack), privacy = 0%
+        privacy_protection = max(0, (1 - (attack_acc - 0.5) * 2))
+
+        log_section("EVALUATION RESULTS")
+        add_log(f"MIA Attack Accuracy: {attack_acc*100:.1f}%", "info")
+        if privacy_protection > 0.7:
+            add_log(f"Privacy Protection: {privacy_protection*100:.1f}% (Strong)", "success")
+        elif privacy_protection > 0.5:
+            add_log(f"Privacy Protection: {privacy_protection*100:.1f}% (Moderate)", "warning")
+        else:
+            add_log(f"Privacy Protection: {privacy_protection*100:.1f}% (Weak)", "warning")
 
         update_progress(
             status='completed',
@@ -580,11 +601,9 @@ def evaluate_privacy():
             }
         )
 
-        add_log(f"Privacy evaluation completed!", "success")
-        add_log(f"Privacy protection: {privacy_protection*100:.1f}%", "success")
-
     except Exception as e:
-        add_log(f"Privacy evaluation failed: {str(e)}", "error")
+        log_section("EVALUATION FAILED")
+        add_log(f"Error: {str(e)}", "error")
         update_progress(status='error')
         logger.exception("Privacy evaluation error:")
 
